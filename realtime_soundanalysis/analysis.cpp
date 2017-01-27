@@ -18,7 +18,7 @@
 #define HEIGHT_LB	20
 
 #define SRATE 	44100
-#define TIMEPERBUFFER 1
+#define TIMEPERBUFFER 2
 
 
 

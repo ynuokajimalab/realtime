@@ -3,7 +3,7 @@
 #include <math.h>
 
 #define S_RATE 0.06
-#define T_RATE 4.0/3.0
+#define T_RATE 3.0/3.0
 #define THRESHOLD 120
 
 
