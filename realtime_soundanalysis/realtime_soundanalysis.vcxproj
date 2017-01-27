@@ -18,6 +18,13 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="analysis.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="countjoint.h" />
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{BDF4C2D1-DD86-431E-BA15-79206238F636}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
@@ -145,8 +152,6 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
