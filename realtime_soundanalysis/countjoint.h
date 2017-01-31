@@ -80,14 +80,14 @@ DWORD CheckSoundOnGauss(DWORD dwSaveLength, PWAVEHDR pSound, PWAVEFORMATEX pwf, 
 
 double gettime(DWORD dwDataLength, PWAVEFORMATEX pWaveFormat){
 	double time;
-	time = (double)dwDataLength / pWaveFormat->nSamplesPerSec;
+	time = (double)dwDataLength / pWaveFormat->nAvgBytesPerSec;
 	return time;
 }
 
 int CheckWake(joint* pjoint,int jointnum, DWORD dwDataLength, PWAVEFORMATEX pWaveFormat) {
 	int judge = 1;
 	double jointinterval;
-	if (jointnum != 0) {
+	if (jointnum > 0) {
 		jointinterval = gettime(dwDataLength,pWaveFormat) - pjoint[jointnum-1].jointtime;
 		if (pjoint[jointnum-1].sleeptime >= jointinterval)
 		{

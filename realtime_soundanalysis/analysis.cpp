@@ -18,7 +18,7 @@
 #define HEIGHT_LB	20
 
 #define SRATE 	11025
-#define TIMEPERBUFFER 2
+#define TIMEPERBUFFER 0.1
 
 
 HWND hwnd, hwnd_btstart, hwnd_btend1, hwnd_btplay, hwnd_btend2, hwnd_lbcount, hwnd_lbdata, hwnd_lbjointtime;
@@ -32,8 +32,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 	static HWAVEIN hWaveIn;
 	static BYTE *bWave1, *bWave2, *bSave, *bTmp;
 	static WAVEHDR whdr1, whdr2;
-	static DWORD dwLength = 0, dwCount;
-	static BOOL blReset = FALSE;
+	static DWORD dwLength = 0, dwCount, dwTempLength;
+	static BOOL blReset = FALSE,blWaveinOpen = FALSE;
 
 	switch (msg) {
 	case WM_DESTROY:
@@ -44,9 +44,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		wfe.wFormatTag = WAVE_FORMAT_PCM;
 		wfe.nChannels = 1;
 		wfe.nSamplesPerSec = SRATE;
-		wfe.nAvgBytesPerSec = SRATE;
 		wfe.wBitsPerSample = 8;
-		wfe.nBlockAlign = 1;
+		wfe.nBlockAlign = wfe.nChannels * wfe.wBitsPerSample / 8;;
+		wfe.nAvgBytesPerSec = SRATE*wfe.nBlockAlign;
 		wfe.cbSize = 0;
 		return 0;
 	case WM_COMMAND:
@@ -56,7 +56,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 			bWave2 = (BYTE*)malloc(SRATE);
 
 			whdr1.lpData = (LPSTR)bWave1;
-			whdr1.dwBufferLength = SRATE;
+			whdr1.dwBufferLength = wfe.nAvgBytesPerSec*TIMEPERBUFFER;
 			whdr1.dwBytesRecorded = 0;
 			whdr1.dwFlags = 0;
 			whdr1.dwLoops = 1;
@@ -65,16 +65,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 			whdr1.reserved = 0;
 
 			whdr2.lpData = (LPSTR)bWave2;
-			whdr2.dwBufferLength = SRATE;
+			whdr2.dwBufferLength = wfe.nAvgBytesPerSec*TIMEPERBUFFER;
 			whdr2.dwBytesRecorded = 0;
 			whdr2.dwFlags = 0;
 			whdr2.dwLoops = 1;
 			whdr2.lpNext = NULL;
 			whdr2.dwUser = 0;
 			whdr2.reserved = 0;
-
-			waveInOpen(&hWaveIn, WAVE_MAPPER, &wfe,
-				(DWORD)hWnd, 0, CALLBACK_WINDOW);
+			if (waveInOpen(&hWaveIn, WAVE_MAPPER, &wfe, (DWORD)hWnd, 0, CALLBACK_WINDOW) == MMSYSERR_NOERROR) {
+				blWaveinOpen = TRUE;
+			}
 			waveInPrepareHeader(hWaveIn, &whdr1, sizeof(WAVEHDR));
 			waveInPrepareHeader(hWaveIn, &whdr2, sizeof(WAVEHDR));
 			break;
@@ -115,15 +115,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		waveInStart(hWaveIn);
 		return 0;
 	case MM_WIM_DATA:
-		bTmp = (BYTE*)realloc(bSave,
-			dwLength + ((PWAVEHDR)lp)->dwBytesRecorded);
+		if (((PWAVEHDR)lp)->dwBytesRecorded != ((PWAVEHDR)lp)->dwBufferLength) {
+			if (blWaveinOpen == TRUE) {
+				if (waveInClose(hWaveIn) == MMSYSERR_NOERROR) {
+					blWaveinOpen = FALSE;
+				}
+			}
+			blReset = FALSE;
+			return 0;
+		}
+		dwTempLength = dwLength + ((PWAVEHDR)lp)->dwBytesRecorded;
+		bTmp = (BYTE*)realloc(bSave, dwTempLength);
 		if (blReset || !bTmp) {
-			waveInClose(hWaveIn);
+			if (blWaveinOpen == TRUE) {
+				if (waveInClose(hWaveIn) == MMSYSERR_NOERROR) {
+					blWaveinOpen = FALSE;
+				}
+			}
 			blReset = FALSE;
 			return 0;
 		}
 
 		bSave = bTmp;
+
 		for (dwCount = 0; dwCount < ((PWAVEHDR)lp)->dwBytesRecorded; dwCount++)
 			*(bSave + dwLength + dwCount) = *(((PWAVEHDR)lp)->lpData + dwCount);
 		dwLength += ((PWAVEHDR)lp)->dwBytesRecorded;
