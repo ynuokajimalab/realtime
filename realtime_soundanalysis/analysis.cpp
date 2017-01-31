@@ -17,28 +17,23 @@
 #define WIDTH_LB	200
 #define HEIGHT_LB	20
 
-#define SRATE 	44100
+#define SRATE 	11025
 #define TIMEPERBUFFER 2
 
 
-
-HWND hwnd,hwnd_btstart,hwnd_btend1,hwnd_btplay,hwnd_btend2,hwnd_lbcount,hwnd_lbdata,hwnd_lbjointtime;
+HWND hwnd, hwnd_btstart, hwnd_btend1, hwnd_btplay, hwnd_btend2, hwnd_lbcount, hwnd_lbdata, hwnd_lbjointtime;
 RECT rc;
 int iClientWidth, iClientHeight, iInterval;
 joint* pJoint;
 
-
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
-	static MMRESULT error;
 	static WAVEFORMATEX wfe;
 	static HWAVEOUT hWaveOut;
 	static HWAVEIN hWaveIn;
-	static SHORT *bWave1, *bWave2, *bSave, *bTmp;
+	static BYTE *bWave1, *bWave2, *bSave, *bTmp;
 	static WAVEHDR whdr1, whdr2;
-	static DWORD dwLength = 0, dwCount,dwTempLength;
+	static DWORD dwLength = 0, dwCount;
 	static BOOL blReset = FALSE;
-	static TCHAR tCount[8],tData[8],tTime[8];
-	static int iJoint;
 
 	switch (msg) {
 	case WM_DESTROY:
@@ -48,22 +43,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 	case WM_CREATE:
 		wfe.wFormatTag = WAVE_FORMAT_PCM;
 		wfe.nChannels = 1;
-		wfe.wBitsPerSample = 16;
 		wfe.nSamplesPerSec = SRATE;
-		wfe.nBlockAlign = wfe.nChannels * wfe.wBitsPerSample / 8;
-		wfe.nAvgBytesPerSec = SRATE*wfe.nBlockAlign;
+		wfe.nAvgBytesPerSec = SRATE;
+		wfe.wBitsPerSample = 8;
+		wfe.nBlockAlign = 1;
 		wfe.cbSize = 0;
-
-
 		return 0;
 	case WM_COMMAND:
 		switch (LOWORD(wp)) {
 		case IDB_STR:
-			bWave1 = (SHORT*)calloc(wfe.nAvgBytesPerSec,TIMEPERBUFFER);
-			bWave2 = (SHORT*)calloc(wfe.nAvgBytesPerSec, TIMEPERBUFFER);
+			bWave1 = (BYTE*)malloc(SRATE);
+			bWave2 = (BYTE*)malloc(SRATE);
 
-			whdr1.lpData =(LPSTR)bWave1;
-			whdr1.dwBufferLength = wfe.nAvgBytesPerSec*TIMEPERBUFFER;
+			whdr1.lpData = (LPSTR)bWave1;
+			whdr1.dwBufferLength = SRATE;
 			whdr1.dwBytesRecorded = 0;
 			whdr1.dwFlags = 0;
 			whdr1.dwLoops = 1;
@@ -72,7 +65,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 			whdr1.reserved = 0;
 
 			whdr2.lpData = (LPSTR)bWave2;
-			whdr2.dwBufferLength = wfe.nAvgBytesPerSec*TIMEPERBUFFER;
+			whdr2.dwBufferLength = SRATE;
 			whdr2.dwBytesRecorded = 0;
 			whdr2.dwFlags = 0;
 			whdr2.dwLoops = 1;
@@ -80,16 +73,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 			whdr2.dwUser = 0;
 			whdr2.reserved = 0;
 
-			if(!waveInOpen(&hWaveIn, WAVE_MAPPER, &wfe, (DWORD)hWnd, 0, CALLBACK_WINDOW))
-				perror("WaveInOpen:");
-			if (!waveInPrepareHeader(hWaveIn, &whdr1, sizeof(WAVEHDR)))
-				perror("waveInPrepareHeader1:");
-			if (!waveInPrepareHeader(hWaveIn, &whdr2, sizeof(WAVEHDR)))
-				perror("waveInPrepareHeader2:");
+			waveInOpen(&hWaveIn, WAVE_MAPPER, &wfe,
+				(DWORD)hWnd, 0, CALLBACK_WINDOW);
+			waveInPrepareHeader(hWaveIn, &whdr1, sizeof(WAVEHDR));
+			waveInPrepareHeader(hWaveIn, &whdr2, sizeof(WAVEHDR));
 			break;
 		case IDB_PLAY:
 			whdr1.lpData = (LPSTR)bSave;
-			whdr1.dwBufferLength = dwLength*sizeof(SHORT);
+			whdr1.dwBufferLength = dwLength;
 			whdr1.dwBytesRecorded = 0;
 			whdr1.dwFlags = WHDR_BEGINLOOP | WHDR_ENDLOOP;
 			whdr1.dwLoops = 1;
@@ -97,12 +88,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 			whdr1.dwUser = 0;
 			whdr1.reserved = 0;
 
-			if (!waveOutOpen(&hWaveOut, WAVE_MAPPER, &wfe, (DWORD)hWnd, 0, CALLBACK_WINDOW))
-				perror("WaveOutOpen:");
-			if (!waveOutPrepareHeader(hWaveOut, &whdr1, sizeof(WAVEHDR)))
-				perror("waveOutPrepareHeader:");
-			if (!waveOutWrite(hWaveOut, &whdr1, sizeof(WAVEHDR)))
-				perror("waveOutWrite:");
+			waveOutOpen(&hWaveOut, WAVE_MAPPER, &wfe,
+				(DWORD)hWnd, 0, CALLBACK_WINDOW);
+			waveOutPrepareHeader(
+				hWaveOut, &whdr1, sizeof(WAVEHDR));
+			waveOutWrite(hWaveOut, &whdr1, sizeof(WAVEHDR));
 			break;
 		case IDB_REC_END:
 			blReset = TRUE;
@@ -115,13 +105,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		return 0;
 	case MM_WIM_OPEN:
 		dwLength = 0;
-		iJoint = 0;
-		bSave = (SHORT*)realloc(bSave, 1);
-		if ((pJoint = (joint*)realloc(pJoint,sizeof(joint))) == NULL)
-		{
-			perror("realloc:");
-			return -1;
-		}
+		bSave = (BYTE*)realloc(bSave, 1);
 
 		EnableWindow(GetDlgItem(hWnd, IDB_PLAY), FALSE);
 		EnableWindow(GetDlgItem(hWnd, IDB_STR), FALSE);
@@ -131,41 +115,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		waveInStart(hWaveIn);
 		return 0;
 	case MM_WIM_DATA:
-		dwTempLength = dwLength + ((PWAVEHDR)lp)->dwBytesRecorded/wfe.nBlockAlign;
-		if (blReset)
-		{
+		bTmp = (BYTE*)realloc(bSave,
+			dwLength + ((PWAVEHDR)lp)->dwBytesRecorded);
+		if (blReset || !bTmp) {
 			waveInClose(hWaveIn);
 			blReset = FALSE;
 			return 0;
 		}
-		else if ((bTmp = (SHORT*)realloc(bSave, dwTempLength * sizeof(SHORT))) == NULL) {
-			perror("btemp:");
-			OutputDebugString(TEXT("bTempはメモリ確保に失敗\n"));
-			return -1;
-		}
-		bSave = bTmp;
-		//ジョイント音の解析、表示
-		if (CheckSound(dwTempLength,(PWAVEHDR)lp, &wfe, pJoint,iJoint))
-		{
-			iJoint++;
-			if ((pJoint = (joint*)realloc(pJoint, (iJoint+1)* sizeof(joint))) == NULL)
-			{
-				perror("realloc:");
-				return -1;
-			}
-			wsprintf(tCount,TEXT("%d"), (pJoint + iJoint - 1)->count);
-			wsprintf(tData, TEXT("%d"),(pJoint+iJoint-1)->data);
-			SetWindowText(hwnd_lbcount,(LPCTSTR)tCount);
-			SetWindowText(hwnd_lbdata, (LPCTSTR)tData);
-		}
 
-		for (dwCount = 0; dwCount < ((PWAVEHDR)lp)->dwBytesRecorded/wfe.nBlockAlign; dwCount++)
+		bSave = bTmp;
+		for (dwCount = 0; dwCount < ((PWAVEHDR)lp)->dwBytesRecorded; dwCount++)
 			*(bSave + dwLength + dwCount) = *(((PWAVEHDR)lp)->lpData + dwCount);
-		dwLength += ((PWAVEHDR)lp)->dwBytesRecorded/wfe.nBlockAlign;
-		if (waveInAddBuffer(hWaveIn, (PWAVEHDR)lp, sizeof(WAVEHDR)) != 0)
-		{
-			perror("waveInAddBuffer:");
-		}
+		dwLength += ((PWAVEHDR)lp)->dwBytesRecorded;
+		waveInAddBuffer(hWaveIn, (PWAVEHDR)lp, sizeof(WAVEHDR));
 		return 0;
 	case MM_WIM_CLOSE:
 		waveInUnprepareHeader(hWaveIn, &whdr1, sizeof(WAVEHDR));
@@ -195,9 +157,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 	return DefWindowProc(hWnd, msg, wp, lp);
 }
 
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	PSTR lpCmdLine, int nCmdShow) {
-	MMRESULT error;
 	MSG msg;
 	WNDCLASS winc;
 
@@ -214,32 +176,26 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	if (!RegisterClass(&winc)) return -1;
 
-	hwnd = CreateWindow(TITLE,TEXT("ANALYZE"), WS_VISIBLE | WS_SYSMENU | WS_CAPTION,
+	hwnd = CreateWindow(TITLE, TEXT("ANALYZE"), WS_VISIBLE | WS_SYSMENU | WS_CAPTION,
 		0, 0, WIDTH, HEIGHT, NULL, NULL, hInstance, NULL);
 
-	GetClientRect(hwnd,&rc);
+	GetClientRect(hwnd, &rc);
 	iClientWidth = rc.right - rc.left;
-	iInterval = iClientWidth - 2*(MARGIN + WIDTH_BT);
+	iInterval = iClientWidth - 2 * (MARGIN + WIDTH_BT);
 
-	hwnd_btstart = CreateWindow(TEXT("button"),TEXT("start"),WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, MARGIN, MARGIN, WIDTH_BT, HEIGHT_BT,hwnd,(HMENU)IDB_STR,hInstance,NULL);
-	hwnd_btend1 = CreateWindow(TEXT("button"), TEXT("end"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON |WS_DISABLED,MARGIN+WIDTH_BT+iInterval, MARGIN, WIDTH_BT, HEIGHT_BT, hwnd, (HMENU)IDB_REC_END, hInstance, NULL);
-	hwnd_btplay = CreateWindow(TEXT("button"), TEXT("play"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, MARGIN, MARGIN+HEIGHT_BT+iInterval, WIDTH_BT, HEIGHT_BT, hwnd, (HMENU)IDB_PLAY, hInstance, NULL);
+	hwnd_btstart = CreateWindow(TEXT("button"), TEXT("start"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, MARGIN, MARGIN, WIDTH_BT, HEIGHT_BT, hwnd, (HMENU)IDB_STR, hInstance, NULL);
+	hwnd_btend1 = CreateWindow(TEXT("button"), TEXT("end"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | WS_DISABLED, MARGIN + WIDTH_BT + iInterval, MARGIN, WIDTH_BT, HEIGHT_BT, hwnd, (HMENU)IDB_REC_END, hInstance, NULL);
+	hwnd_btplay = CreateWindow(TEXT("button"), TEXT("play"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, MARGIN, MARGIN + HEIGHT_BT + iInterval, WIDTH_BT, HEIGHT_BT, hwnd, (HMENU)IDB_PLAY, hInstance, NULL);
 	hwnd_btend2 = CreateWindow(TEXT("button"), TEXT("end"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | WS_DISABLED, MARGIN + WIDTH_BT + iInterval, MARGIN + HEIGHT_BT + iInterval, WIDTH_BT, HEIGHT_BT, hwnd, (HMENU)IDB_PLY_END, hInstance, NULL);
-	hwnd_lbcount = CreateWindow(TEXT("STATIC"), TEXT("count:0"),WS_CHILD | WS_VISIBLE,MARGIN, MARGIN+2*HEIGHT_BT+2*iInterval, WIDTH_LB, HEIGHT_LB, hwnd, (HMENU)1,hInstance, NULL);
-	hwnd_lbdata = CreateWindow(TEXT("STATIC"), TEXT("data :-"), WS_CHILD | WS_VISIBLE, MARGIN, MARGIN+2*HEIGHT_BT+HEIGHT_LB+3*iInterval, WIDTH_LB, HEIGHT_LB, hwnd, (HMENU)1, hInstance, NULL);
-	hwnd_lbjointtime = CreateWindow(TEXT("STATIC"), TEXT("time :-"), WS_CHILD | WS_VISIBLE, MARGIN, MARGIN + 2 * HEIGHT_BT + 2*HEIGHT_LB + 4 * iInterval, WIDTH_LB, HEIGHT_LB, hwnd, (HMENU)1, hInstance, NULL);
-
+	hwnd_lbcount = CreateWindow(TEXT("STATIC"), TEXT("count:0"), WS_CHILD | WS_VISIBLE, MARGIN, MARGIN + 2 * HEIGHT_BT + 2 * iInterval, WIDTH_LB, HEIGHT_LB, hwnd, (HMENU)1, hInstance, NULL);
+	hwnd_lbdata = CreateWindow(TEXT("STATIC"), TEXT("data :-"), WS_CHILD | WS_VISIBLE, MARGIN, MARGIN + 2 * HEIGHT_BT + HEIGHT_LB + 3 * iInterval, WIDTH_LB, HEIGHT_LB, hwnd, (HMENU)1, hInstance, NULL);
+	hwnd_lbjointtime = CreateWindow(TEXT("STATIC"), TEXT("time :-"), WS_CHILD | WS_VISIBLE, MARGIN, MARGIN + 2 * HEIGHT_BT + 2 * HEIGHT_LB + 4 * iInterval, WIDTH_LB, HEIGHT_LB, hwnd, (HMENU)1, hInstance, NULL);
 
 	if (hwnd == NULL) return -1;
 
-	while ((error = GetMessage(&msg, NULL, 0, 0) != 0)) {
-		if (error == -1) {
-			perror("Getmassage:");
-			return -1;
-		}
+	while (GetMessage(&msg, NULL, 0, 0)) {
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
 	return msg.wParam;
 }
-
