@@ -18,7 +18,7 @@
 #define HEIGHT_LB	20
 
 #define SRATE 	11025
-#define TIMEPERBUFFER 0.1
+#define TIMEPERBUFFER 0.5
 
 
 HWND hwnd, hwnd_btstart, hwnd_btend1, hwnd_btplay, hwnd_btend2, hwnd_lbcount, hwnd_lbdata, hwnd_lbjointtime;
@@ -32,8 +32,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 	static HWAVEIN hWaveIn;
 	static BYTE *bWave1, *bWave2, *bSave, *bTmp;
 	static WAVEHDR whdr1, whdr2;
-	static DWORD dwLength = 0, dwCount, dwTempLength;
+	static DWORD dwLength = 0, dwCount, dwTempLength,dwJoint;
 	static BOOL blReset = FALSE,blWaveinOpen = FALSE;
+	static TCHAR tCount[8], tData[8], tTime[8];
 
 	switch (msg) {
 	case WM_DESTROY:
@@ -105,7 +106,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		return 0;
 	case MM_WIM_OPEN:
 		dwLength = 0;
+		dwJoint = 0;
 		bSave = (BYTE*)realloc(bSave, 1);
+		pJoint = (joint*)realloc(pJoint, sizeof(joint));
 
 		EnableWindow(GetDlgItem(hWnd, IDB_PLAY), FALSE);
 		EnableWindow(GetDlgItem(hWnd, IDB_STR), FALSE);
@@ -137,7 +140,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		}
 
 		bSave = bTmp;
-
+		//ジョイント音の解析、表示
+		if (CheckSound(dwTempLength, (PWAVEHDR)lp, &wfe, pJoint, dwJoint))
+		{
+			dwJoint++;
+			pJoint = (joint*)realloc(pJoint, (dwJoint + 1) * sizeof(joint));
+			wsprintf(tCount, TEXT("%d"), (pJoint + dwJoint - 1)->count);
+			wsprintf(tData, TEXT("%d"), (pJoint + dwJoint - 1)->data);
+			SetWindowText(hwnd_lbcount, (LPCTSTR)tCount);
+			SetWindowText(hwnd_lbdata, (LPCTSTR)tData);
+		}
 		for (dwCount = 0; dwCount < ((PWAVEHDR)lp)->dwBytesRecorded; dwCount++)
 			*(bSave + dwLength + dwCount) = *(((PWAVEHDR)lp)->lpData + dwCount);
 		dwLength += ((PWAVEHDR)lp)->dwBytesRecorded;

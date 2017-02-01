@@ -1,0 +1,8 @@
+﻿1>------ ビルド開始: プロジェクト:realtime_soundanalysis, 構成:Debug Win32 ------
+1>  analysis.cpp
+1>c:\users\s.suguru\documents\visual studio 2015\projects\realtime_soundanalysis\realtime_soundanalysis\countjoint.h(40): warning C4101: 'temp': ローカル変数は 1 度も使われていません。
+1>c:\users\s.suguru\documents\visual studio 2015\projects\realtime_soundanalysis\realtime_soundanalysis\analysis.cpp(60): warning C4244: '=': 'double' から 'DWORD' への変換です。データが失われる可能性があります。
+1>c:\users\s.suguru\documents\visual studio 2015\projects\realtime_soundanalysis\realtime_soundanalysis\analysis.cpp(69): warning C4244: '=': 'double' から 'DWORD' への変換です。データが失われる可能性があります。
+1>  realtime_soundanalysis.vcxproj -> C:\Users\s.suguru\documents\visual studio 2015\Projects\realtime_soundanalysis\Debug\realtime_soundanalysis.exe
+1>  realtime_soundanalysis.vcxproj -> C:\Users\s.suguru\documents\visual studio 2015\Projects\realtime_soundanalysis\Debug\realtime_soundanalysis.pdb (Full PDB)
+========== ビルド: 1 正常終了、0 失敗、0 更新不要、0 スキップ ==========
