@@ -6,7 +6,6 @@
 #define ALPHA 4.4
 #define BETA 0.04
 #define GANMA 2.0/3.0
-#define THRESHOLD 10
 
 
 typedef struct{
@@ -26,19 +25,19 @@ EightBitData bigger8BitData(EightBitData data1, EightBitData data2);
 EightBitData smaller8BitData(EightBitData data1, EightBitData data2);
 EightBitData representive8BitData(EightBitData data1, EightBitData data2);
 DWORD CheckWake(joint* pjoint,int jointnum, DWORD dwDataLength, PWAVEFORMATEX pWaveFormat);
-DWORD CheckSoundOnGauss(DWORD dwSaveLength, PWAVEHDR pSound, PWAVEFORMATEX pwf, joint* pcjoint, int jointnum);
-DWORD CheckSound(DWORD dwSaveLength, PWAVEHDR pSound, PWAVEFORMATEX pwf, joint* pjoint,int jointnum);
+DWORD CheckSoundOnGauss(DWORD dwSaveLength, PWAVEHDR pSound, PWAVEFORMATEX pwf, joint* pcjoint, int jointnum,double threshold);
+DWORD CheckSound(DWORD dwSaveLength, PWAVEHDR pSound, PWAVEFORMATEX pwf, joint* pjoint,int jointnum, double threshold);
 double gettime(DWORD dwSaveLength, PWAVEFORMATEX pWaveFormat);
 
-DWORD CheckSound(DWORD dwSaveLength, PWAVEHDR pSound, PWAVEFORMATEX pwf, joint* pjoint, int jointnum) {
+DWORD CheckSound(DWORD dwSaveLength, PWAVEHDR pSound, PWAVEFORMATEX pwf, joint* pjoint, int jointnum,double threshold) {
 	int judge = 0;
 	if(CheckWake(pjoint,jointnum,dwSaveLength,pwf))
-		judge = CheckSoundOnGauss(dwSaveLength, pSound, pwf, pjoint,jointnum);
+		judge = CheckSoundOnGauss(dwSaveLength, pSound, pwf, pjoint,jointnum,threshold);
 
 	return judge;
 }
 
-DWORD CheckSoundOnGauss(DWORD dwSaveLength, PWAVEHDR pSound, PWAVEFORMATEX pwf, joint* pjoint,int jointnum) {
+DWORD CheckSoundOnGauss(DWORD dwSaveLength, PWAVEHDR pSound, PWAVEFORMATEX pwf, joint* pjoint,int jointnum,double threshold) {
 	DWORD judge = 0,BufferNum;
 	double jtime,stime,interval;
 	EightBitData tempdata,maxdata, mindata, representivedata;
@@ -53,7 +52,7 @@ DWORD CheckSoundOnGauss(DWORD dwSaveLength, PWAVEHDR pSound, PWAVEFORMATEX pwf, 
 			mindata = smaller8BitData(mindata, tempdata);
 		}
 		representivedata = representive8BitData(maxdata,mindata);
-		if ((abs(representivedata.data-128)) > THRESHOLD) {
+		if ((abs(representivedata.data-128)) > threshold) {
 			judge = 1;
 			jtime = gettime(dwSaveLength,pwf);
 			if (pjoint->count == 0)

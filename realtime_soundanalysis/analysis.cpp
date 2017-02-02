@@ -24,12 +24,15 @@
 #define SRATE 	11025
 #define TIMEPERBUFFER 0.5
 
+double getSD(BYTE* data, DWORD num);
 
 HWND hwnd,hwnd2, hwnd_btstart, hwnd_btend1, hwnd_btplay, hwnd_btend2,hwnd_btshow, hwnd_lbcount, hwnd_lbdata, hwnd_lbjointtime,hwnd2_lvJoints;
 RECT rc,rc2;
 int iClientWidth, iClientHeight, iClientWidth2,iClientHeight2,iInterval,iCount;
+DOUBLE dbThreshold;
 joint* pJoint;
 LVCOLUMN col;
+
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 	static WAVEFORMATEX wfe;
@@ -150,8 +153,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		}
 
 		bSave = bTmp;
+		dbThreshold =ALPHA* getSD(bSave,dwTempLength/wfe.nBlockAlign);
+
 		//ジョイント音の解析、表示
-		if (CheckSound(dwTempLength, (PWAVEHDR)lp, &wfe, pJoint, dwJoint))
+		if (CheckSound(dwTempLength, (PWAVEHDR)lp, &wfe, pJoint, dwJoint,dbThreshold))
 		{
 			dwJoint++;
 			pJoint = (joint*)realloc(pJoint, (dwJoint + 1) * sizeof(joint));
@@ -283,4 +288,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		DispatchMessage(&msg);
 	}
 	return msg.wParam;
+}
+
+double getSD(BYTE* data,DWORD num) {
+	DWORD dw;
+	double ans = 0;
+	for (dw = 0; dw < num;dw++) {
+		ans += (data[dw]-128)* (data[dw] - 128);
+	}
+	ans /= num;
+	ans = sqrt(ans);
+	return ans;
 }
