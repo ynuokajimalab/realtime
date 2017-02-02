@@ -1,5 +1,7 @@
 #include <windows.h>
 #include <mmsystem.h>
+#include <commctrl.h>
+#pragma comment(lib, "ComCtl32.lib ")
 #pragma comment (lib, "winmm.lib")
 #include "resource.h"
 #include "countjoint.h"
@@ -8,6 +10,8 @@
 #define TITLE 	TEXT("analyze")
 #define WIDTH	400
 #define HEIGHT	400
+
+#define TITLE_LIST TEXT("analyze list")
 
 //ƒ{ƒ^ƒ“‚ÌÝ’è
 #define WIDTH_BT	180
@@ -21,10 +25,11 @@
 #define TIMEPERBUFFER 0.5
 
 
-HWND hwnd, hwnd_btstart, hwnd_btend1, hwnd_btplay, hwnd_btend2, hwnd_lbcount, hwnd_lbdata, hwnd_lbjointtime;
-RECT rc;
-int iClientWidth, iClientHeight, iInterval;
+HWND hwnd,hwnd2, hwnd_btstart, hwnd_btend1, hwnd_btplay, hwnd_btend2,hwnd_btshow, hwnd_lbcount, hwnd_lbdata, hwnd_lbjointtime,hwnd2_lvJoints;
+RECT rc,rc2;
+int iClientWidth, iClientHeight, iClientWidth2,iClientHeight2,iInterval,iCount;
 joint* pJoint;
+LVCOLUMN col;
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 	static WAVEFORMATEX wfe;
@@ -102,13 +107,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		case IDB_PLY_END:
 			waveOutReset(hWaveOut);
 			break;
+		case IDB_SHOW:
+			ShowWindow(hwnd2, TRUE);
+			break;
 		}
 		return 0;
 	case MM_WIM_OPEN:
 		dwLength = 0;
 		dwJoint = 0;
+		UpdateJointList(hwnd2_lvJoints,pJoint,0);
 		bSave = (BYTE*)realloc(bSave, 1);
 		pJoint = (joint*)realloc(pJoint, sizeof(joint));
+		initJointData(pJoint);
 
 		EnableWindow(GetDlgItem(hWnd, IDB_PLAY), FALSE);
 		EnableWindow(GetDlgItem(hWnd, IDB_STR), FALSE);
@@ -149,6 +159,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 			wsprintf(tData, TEXT("%d"), (pJoint + dwJoint - 1)->data);
 			SetWindowText(hwnd_lbcount, (LPCTSTR)tCount);
 			SetWindowText(hwnd_lbdata, (LPCTSTR)tData);
+			UpdateJointList(hwnd2_lvJoints,pJoint,dwJoint);
+			(pJoint + dwJoint)->count = -1;
 		}
 		for (dwCount = 0; dwCount < ((PWAVEHDR)lp)->dwBytesRecorded; dwCount++)
 			*(bSave + dwLength + dwCount) = *(((PWAVEHDR)lp)->lpData + dwCount);
@@ -183,11 +195,27 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 	return DefWindowProc(hWnd, msg, wp, lp);
 }
 
+LRESULT CALLBACK WndProc2(HWND hwnd2, UINT msg, WPARAM wp, LPARAM lp) {
+	switch (msg){
+	case WM_CREATE:
+		return 0;
+	case WM_SYSCOMMAND:
+		if (LOWORD(wp) == SC_CLOSE) {
+			ShowWindow(hwnd2, SW_HIDE);
+			return 0;
+		}
+	default:
+		break;
+	}
+	return DefWindowProc(hwnd2, msg, wp, lp);
+}
+
+
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	PSTR lpCmdLine, int nCmdShow) {
 	MSG msg;
-	WNDCLASS winc;
+	WNDCLASS winc,winc2;
 
 	winc.style = CS_HREDRAW | CS_VREDRAW;
 	winc.lpfnWndProc = WndProc;
@@ -200,10 +228,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	winc.lpszMenuName = NULL;
 	winc.lpszClassName = TITLE;
 
+	winc2 = winc;
+	winc2.lpfnWndProc = WndProc2;
+	winc2.lpszClassName = TITLE_LIST;
+
 	if (!RegisterClass(&winc)) return -1;
+	if (!RegisterClass(&winc2)) return -1;
 
 	hwnd = CreateWindow(TITLE, TEXT("ANALYZE"), WS_VISIBLE | WS_SYSMENU | WS_CAPTION,
 		0, 0, WIDTH, HEIGHT, NULL, NULL, hInstance, NULL);
+	hwnd2 = CreateWindow(TITLE_LIST, TEXT("JOINT_LIST"), WS_SYSMENU | WS_CAPTION,
+		WIDTH, 0, WIDTH, HEIGHT, NULL, NULL, hInstance, NULL);
 
 	GetClientRect(hwnd, &rc);
 	iClientWidth = rc.right - rc.left;
@@ -216,8 +251,32 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	hwnd_lbcount = CreateWindow(TEXT("STATIC"), TEXT("count:0"), WS_CHILD | WS_VISIBLE, MARGIN, MARGIN + 2 * HEIGHT_BT + 2 * iInterval, WIDTH_LB, HEIGHT_LB, hwnd, (HMENU)1, hInstance, NULL);
 	hwnd_lbdata = CreateWindow(TEXT("STATIC"), TEXT("data :-"), WS_CHILD | WS_VISIBLE, MARGIN, MARGIN + 2 * HEIGHT_BT + HEIGHT_LB + 3 * iInterval, WIDTH_LB, HEIGHT_LB, hwnd, (HMENU)1, hInstance, NULL);
 	hwnd_lbjointtime = CreateWindow(TEXT("STATIC"), TEXT("time :-"), WS_CHILD | WS_VISIBLE, MARGIN, MARGIN + 2 * HEIGHT_BT + 2 * HEIGHT_LB + 4 * iInterval, WIDTH_LB, HEIGHT_LB, hwnd, (HMENU)1, hInstance, NULL);
+	hwnd_btshow = CreateWindow(TEXT("button"), TEXT("show"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, MARGIN + WIDTH_BT + iInterval, MARGIN +2* HEIGHT_BT + 2*iInterval, WIDTH_BT, HEIGHT_BT, hwnd, (HMENU)IDB_SHOW, hInstance, NULL);
+	
+	InitCommonControls();
+	GetClientRect(hwnd2, &rc2);
+	iClientWidth2 = rc2.right - rc2.left;
+	iClientHeight2 = rc2.bottom - rc2.top;
 
-	if (hwnd == NULL) return -1;
+	hwnd2_lvJoints = CreateWindowEx(0,WC_LISTVIEW, NULL,WS_CHILD | WS_VISIBLE | LVS_REPORT,
+		0, 0, iClientWidth2, iClientHeight2, hwnd2, (HMENU)1,hInstance, NULL);
+	col.mask = LVCF_FMT | LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
+	col.fmt = LVCFMT_LEFT;
+	col.cx = iClientWidth2/4;
+	col.pszText = TEXT("count");
+	col.iSubItem = 0;
+	ListView_InsertColumn(hwnd2_lvJoints, 0, &col);
+	col.iSubItem = 1;
+	col.pszText = TEXT("data");
+	ListView_InsertColumn(hwnd2_lvJoints, 1, &col);
+	col.iSubItem = 2;
+	col.pszText = TEXT("jointtime");
+	ListView_InsertColumn(hwnd2_lvJoints, 2, &col);
+	col.iSubItem = 3;
+	col.pszText = TEXT("sleeptime");
+	ListView_InsertColumn(hwnd2_lvJoints, 3, &col);
+
+	if (hwnd == NULL || hwnd2 == NULL) return -1;
 
 	while (GetMessage(&msg, NULL, 0, 0)) {
 		TranslateMessage(&msg);

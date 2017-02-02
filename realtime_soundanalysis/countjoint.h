@@ -1,9 +1,11 @@
 #pragma once
+#include <stdio.h>
 #include <windows.h>
 #include <math.h>
 
-#define S_RATE 0.06
-#define T_RATE 3.0/3.0
+#define ALPHA 4.4
+#define BETA 0.04
+#define GANMA 2.0/3.0
 #define THRESHOLD 10
 
 
@@ -37,7 +39,7 @@ DWORD CheckSound(DWORD dwSaveLength, PWAVEHDR pSound, PWAVEFORMATEX pwf, joint* 
 }
 
 DWORD CheckSoundOnGauss(DWORD dwSaveLength, PWAVEHDR pSound, PWAVEFORMATEX pwf, joint* pjoint,int jointnum) {
-	DWORD judge = 0,BufferNum,temp;
+	DWORD judge = 0,BufferNum;
 	double jtime,stime,interval;
 	EightBitData tempdata,maxdata, mindata, representivedata;
 	BufferNum = (pSound->dwBufferLength) / (pwf->nBlockAlign);
@@ -54,7 +56,7 @@ DWORD CheckSoundOnGauss(DWORD dwSaveLength, PWAVEHDR pSound, PWAVEFORMATEX pwf, 
 		if ((abs(representivedata.data-128)) > THRESHOLD) {
 			judge = 1;
 			jtime = gettime(dwSaveLength,pwf);
-			if (pjoint == NULL)
+			if (pjoint->count == 0)
 			{
 				stime = 1.0;
 				interval = jtime;
@@ -62,11 +64,11 @@ DWORD CheckSoundOnGauss(DWORD dwSaveLength, PWAVEHDR pSound, PWAVEFORMATEX pwf, 
 				stime = pjoint[jointnum-1].sleeptime;
 				interval = jtime - pjoint[jointnum-1].jointtime;
 			}
-			if (stime > interval*T_RATE ) {
-				stime -= interval * S_RATE;
+			if (stime > interval*GANMA ) {
+				stime -= interval * BETA;
 			}
 			else{
-				stime += interval * S_RATE;
+				stime += interval * BETA;
 			}
 			(pjoint + jointnum)->count = jointnum+1;
 			(pjoint + jointnum)->data = representivedata.data;
@@ -94,6 +96,14 @@ DWORD CheckWake(joint* pjoint,int jointnum, DWORD dwDataLength, PWAVEFORMATEX pW
 	}
 	return judge;
 }
+
+void initJointData(joint* pJoint) {
+	pJoint->count = 0;
+	pJoint->data = 128;
+	pJoint->jointtime = 0.0;
+	pJoint->sleeptime = 0.0;
+}
+
 
 void set8BitData(EightBitData* pmindata,EightBitData* pmaxdata, EightBitData* prepresentivedata) {
 	prepresentivedata->data = 128;
@@ -144,8 +154,44 @@ EightBitData representive8BitData(EightBitData data1, EightBitData data2) {
 	return representivedata;
 }
 
+void UpdateJointList(HWND hListView, joint* pJoint, DWORD dwCount) {
+	if (dwCount != 0) {
+		static LVITEM item = { 0 };
+		static TCHAR tCount[8], tData[8], tJointTime[16], tSleepTime[16];
+		static char cJointTime[16], cSleepTime[16];
+		item.mask = LVIF_TEXT;
+
+		wsprintf(tCount, TEXT("%d"), (pJoint + dwCount - 1)->count);
+		wsprintf(tData, TEXT("%d"), (pJoint + dwCount - 1)->data);
+
+		sprintf_s(cJointTime,16,"%f", (pJoint + dwCount - 1)->jointtime);
+		sprintf_s(cSleepTime, 16, "%f", (pJoint + dwCount - 1)->sleeptime);
+
+		wsprintf(tJointTime, TEXT("%hs"), cJointTime);
+		wsprintf(tSleepTime, TEXT("%hs"), cSleepTime);
 
 
-void ShowCountJoint(joint* pJoint) {
+		item.pszText = (LPWSTR)tCount;
+		item.iItem = dwCount - 1;
+		item.iSubItem = 0;
+		ListView_InsertItem(hListView, &item);
+
+		item.pszText = (LPWSTR)tData;
+		item.iSubItem = 1;
+		ListView_SetItem(hListView, &item);
+
+		item.pszText = (LPWSTR)tJointTime;
+		item.iSubItem = 2;
+		ListView_SetItem(hListView, &item);
+
+
+		item.pszText = (LPWSTR)tSleepTime;
+		item.iSubItem = 3;
+		ListView_SetItem(hListView, &item);
+	}
+	else if (dwCount == 0) {
+		if(hListView != NULL)
+		ListView_DeleteAllItems(hListView);
+	}
 
 }
