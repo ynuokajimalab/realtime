@@ -24,9 +24,12 @@
 #define SRATE 	11025
 #define TIMEPERBUFFER 0.5
 
+#define SAVEFILENAME TEXT("realtimesound.wav")
+
+void saveSound(BYTE* pSound, PWAVEFORMATEX pWaveFormat, DWORD* pDataSize, PTSTR file_name);
 double getSD(BYTE* data, DWORD num);
 
-HWND hwnd,hwnd2, hwnd_btstart, hwnd_btend1, hwnd_btplay, hwnd_btend2,hwnd_btshow, hwnd_lbcount, hwnd_lbdata, hwnd_lbjointtime,hwnd2_lvJoints;
+HWND hwnd,hwnd2, hwnd_btstart, hwnd_btend1, hwnd_btplay, hwnd_btend2,hwnd_btshow, hwnd_btsave, hwnd_lbcount, hwnd_lbdata, hwnd_lbjointtime,hwnd2_lvJoints;
 RECT rc,rc2;
 int iClientWidth, iClientHeight, iClientWidth2,iClientHeight2,iInterval,iCount;
 DOUBLE dbThreshold;
@@ -112,6 +115,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 			break;
 		case IDB_SHOW:
 			ShowWindow(hwnd2, TRUE);
+			break;
+		case IDB_SAVE:
+			if(dwLength != 0)
+				saveSound(bSave,&wfe,&dwLength,SAVEFILENAME);
 			break;
 		}
 		return 0;
@@ -256,8 +263,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	hwnd_lbcount = CreateWindow(TEXT("STATIC"), TEXT("count:0"), WS_CHILD | WS_VISIBLE, MARGIN, MARGIN + 2 * HEIGHT_BT + 2 * iInterval, WIDTH_LB, HEIGHT_LB, hwnd, (HMENU)1, hInstance, NULL);
 	hwnd_lbdata = CreateWindow(TEXT("STATIC"), TEXT("data :-"), WS_CHILD | WS_VISIBLE, MARGIN, MARGIN + 2 * HEIGHT_BT + HEIGHT_LB + 3 * iInterval, WIDTH_LB, HEIGHT_LB, hwnd, (HMENU)1, hInstance, NULL);
 	hwnd_lbjointtime = CreateWindow(TEXT("STATIC"), TEXT("time :-"), WS_CHILD | WS_VISIBLE, MARGIN, MARGIN + 2 * HEIGHT_BT + 2 * HEIGHT_LB + 4 * iInterval, WIDTH_LB, HEIGHT_LB, hwnd, (HMENU)1, hInstance, NULL);
+	hwnd_btsave = CreateWindow(TEXT("button"), TEXT("save"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, MARGIN, MARGIN + 2 * HEIGHT_BT + 2 * iInterval, WIDTH_BT, HEIGHT_BT, hwnd, (HMENU)IDB_SAVE, hInstance, NULL);
 	hwnd_btshow = CreateWindow(TEXT("button"), TEXT("show"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, MARGIN + WIDTH_BT + iInterval, MARGIN +2* HEIGHT_BT + 2*iInterval, WIDTH_BT, HEIGHT_BT, hwnd, (HMENU)IDB_SHOW, hInstance, NULL);
-	
+
 	InitCommonControls();
 	GetClientRect(hwnd2, &rc2);
 	iClientWidth2 = rc2.right - rc2.left;
@@ -299,4 +307,35 @@ double getSD(BYTE* data,DWORD num) {
 	ans /= num;
 	ans = sqrt(ans);
 	return ans;
+}
+
+void saveSound(BYTE* pSound, PWAVEFORMATEX pWaveFormat,DWORD* pDataSize, PTSTR file_name)
+{
+		DWORD dwCount, dwWriteSize;
+		const DWORD dwFileSize = *pDataSize + 36,dwFmtSize = 16;
+		HANDLE hFile;
+
+		hFile = CreateFile(SAVEFILENAME, GENERIC_WRITE, 0, NULL,
+			CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (hFile == INVALID_HANDLE_VALUE) {
+			MessageBox(NULL, TEXT("ファイルが開けません"), NULL, MB_OK);
+			return ;
+		}
+
+		WriteFile(hFile, "RIFF", 4, &dwWriteSize, NULL);
+		WriteFile(hFile, &dwFileSize, 4, &dwWriteSize, NULL);
+		WriteFile(hFile, "WAVE", 4, &dwWriteSize, NULL);
+
+		WriteFile(hFile, "fmt ", 4, &dwWriteSize, NULL);
+		WriteFile(hFile, &dwFmtSize, 4, &dwWriteSize, NULL);
+		WriteFile(hFile, pWaveFormat, 16, &dwWriteSize, NULL);
+		WriteFile(hFile, "data", 4, &dwWriteSize, NULL);
+		WriteFile(hFile, pDataSize, 4, &dwWriteSize, NULL);
+		WriteFile(hFile, pSound, *pDataSize, &dwWriteSize, NULL);
+
+		MessageBox(NULL, TEXT("wavファイルを保存しました"), NULL, MB_OK);
+
+
+		CloseHandle(hFile);
+
 }
