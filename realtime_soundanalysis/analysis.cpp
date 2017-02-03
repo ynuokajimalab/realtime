@@ -7,11 +7,13 @@
 #include "countjoint.h"
 
 //メインウィンドウの設定
-#define TITLE 	TEXT("analyze")
+#define MAINWINDOW 	TEXT("analyze")
 #define WIDTH	400
 #define HEIGHT	400
 
-#define TITLE_LIST TEXT("analyze list")
+#define SUBWINDOW TEXT("analyze support")
+#define WIDTH_SAVEWINDOW 200
+#define HEIGHT_SAVEWINDOW 160
 
 //ボタンの設定
 #define WIDTH_BT	180
@@ -19,31 +21,39 @@
 #define MARGIN	10
 //ラベルの設定
 #define WIDTH_LB	200
-#define HEIGHT_LB	20
+#define HEIGHT_LB	25
+//エディットの設定
+#define WIDTH_ED	100
+#define HEIGHT_ED	25
+//OKボタンの設定
+#define WIDTH_OKBT	60
+#define HEIGHT_OKBT	20
 
 #define SRATE 	11025
 #define TIMEPERBUFFER 0.5
 
-#define SAVEFILENAME TEXT("realtimesound.wav")
+#define SAVEFILENAME TEXT("test")
 
 void saveSound(BYTE* pSound, PWAVEFORMATEX pWaveFormat, DWORD* pDataSize, PTSTR file_name);
 double getSD(BYTE* data, DWORD num);
 
-HWND hwnd,hwnd2, hwnd_btstart, hwnd_btend1, hwnd_btplay, hwnd_btend2,hwnd_btshow, hwnd_btsave, hwnd_lbcount, hwnd_lbdata, hwnd_lbjointtime,hwnd2_lvJoints;
-RECT rc,rc2;
-int iClientWidth, iClientHeight, iClientWidth2,iClientHeight2,iInterval,iCount;
+BYTE *bWave1, *bWave2, *bSave, *bTmp;
+WAVEFORMATEX wfe;
+DWORD dwLength = 0, dwCount, dwTempLength,dwJoint;
+HWND hwnd,hwnd2,hwnd3, hwnd_btstart, hwnd_btend1, hwnd_btplay, hwnd_btend2,hwnd_btshow, hwnd_btsave, hwnd_lbcount, hwnd_lbdata, hwnd_lbjointtime,
+	hwnd2_lvJoints, hwnd3_lbexplain,hwnd3_edfilename,hwnd3_lbtype,hwnd3_btok;
+RECT rc,rc2,rc3;
+int iClientWidth, iClientHeight, iClientWidth2,iClientHeight2, iClientWidth3, iClientHeight3,iInterval,iCount;
 DOUBLE dbThreshold;
 joint* pJoint;
 LVCOLUMN col;
+LPWSTR strOrgFile,strWaveFile,strJointFile;
 
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
-	static WAVEFORMATEX wfe;
 	static HWAVEOUT hWaveOut;
 	static HWAVEIN hWaveIn;
-	static BYTE *bWave1, *bWave2, *bSave, *bTmp;
 	static WAVEHDR whdr1, whdr2;
-	static DWORD dwLength = 0, dwCount, dwTempLength,dwJoint;
 	static BOOL blReset = FALSE,blWaveinOpen = FALSE;
 	static TCHAR tCount[8], tData[8], tTime[8];
 
@@ -117,8 +127,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 			ShowWindow(hwnd2, TRUE);
 			break;
 		case IDB_SAVE:
-			if(dwLength != 0)
-				saveSound(bSave,&wfe,&dwLength,SAVEFILENAME);
+			if (dwLength != 0) {
+				ShowWindow(hwnd3, SW_SHOW);
+				EnableWindow(hwnd3, TRUE);
+			}
 			break;
 		}
 		return 0;
@@ -133,6 +145,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		EnableWindow(GetDlgItem(hWnd, IDB_PLAY), FALSE);
 		EnableWindow(GetDlgItem(hWnd, IDB_STR), FALSE);
 		EnableWindow(GetDlgItem(hWnd, IDB_REC_END), TRUE);
+		EnableWindow(GetDlgItem(hWnd, IDB_SAVE), FALSE);
 		waveInAddBuffer(hWaveIn, &whdr1, sizeof(WAVEHDR));
 		waveInAddBuffer(hWaveIn, &whdr2, sizeof(WAVEHDR));
 		waveInStart(hWaveIn);
@@ -188,11 +201,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		EnableWindow(GetDlgItem(hWnd, IDB_PLAY), TRUE);
 		EnableWindow(GetDlgItem(hWnd, IDB_STR), TRUE);
 		EnableWindow(GetDlgItem(hWnd, IDB_REC_END), FALSE);
+		EnableWindow(GetDlgItem(hWnd, IDB_SAVE), TRUE);
 		return 0;
 	case MM_WOM_OPEN:
 		EnableWindow(GetDlgItem(hWnd, IDB_PLAY), FALSE);
 		EnableWindow(GetDlgItem(hWnd, IDB_STR), FALSE);
 		EnableWindow(GetDlgItem(hWnd, IDB_PLY_END), TRUE);
+		EnableWindow(GetDlgItem(hWnd, IDB_SAVE), FALSE);
 		return 0;
 	case MM_WOM_DONE:
 		waveOutClose(hWaveOut);
@@ -202,24 +217,40 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		EnableWindow(GetDlgItem(hWnd, IDB_PLAY), TRUE);
 		EnableWindow(GetDlgItem(hWnd, IDB_STR), TRUE);
 		EnableWindow(GetDlgItem(hWnd, IDB_PLY_END), FALSE);
+		EnableWindow(GetDlgItem(hWnd, IDB_SAVE), TRUE);
 		return 0;
 	}
 	return DefWindowProc(hWnd, msg, wp, lp);
 }
 
-LRESULT CALLBACK WndProc2(HWND hwnd2, UINT msg, WPARAM wp, LPARAM lp) {
+LRESULT CALLBACK WndProc2(HWND hSubWnd, UINT msg, WPARAM wp, LPARAM lp) {
 	switch (msg){
-	case WM_CREATE:
-		return 0;
+	case WM_COMMAND:
+		switch (LOWORD(wp)){
+		case IDB_OK:
+			strOrgFile = (LPWSTR)malloc(64*sizeof(TCHAR));
+			strWaveFile = (LPWSTR)malloc(64 * sizeof(TCHAR));
+			strJointFile = (LPWSTR)malloc(64 * sizeof(TCHAR));
+			GetWindowText(hwnd3_edfilename,strOrgFile, 64 * sizeof(TCHAR));
+			lstrcpy(strWaveFile,strOrgFile);
+			lstrcpy(strJointFile, strOrgFile);
+			lstrcat(strWaveFile,TEXT(".wav"));
+			lstrcat(strJointFile, TEXT(".txt"));
+			saveSound(bSave, &wfe, &dwLength, strWaveFile);
+			saveJoint(strJointFile,pJoint,dwJoint);
+			EnableWindow(hwnd3, FALSE);
+			ShowWindow(hwnd3, SW_HIDE);
+			break;
+		}
 	case WM_SYSCOMMAND:
 		if (LOWORD(wp) == SC_CLOSE) {
-			ShowWindow(hwnd2, SW_HIDE);
+			ShowWindow(hSubWnd, SW_HIDE);
 			return 0;
 		}
 	default:
 		break;
 	}
-	return DefWindowProc(hwnd2, msg, wp, lp);
+	return DefWindowProc(hSubWnd, msg, wp, lp);
 }
 
 
@@ -238,41 +269,48 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	winc.hCursor = LoadCursor(NULL, IDC_ARROW);
 	winc.hbrBackground = CreateSolidBrush(GetSysColor(COLOR_MENU));
 	winc.lpszMenuName = NULL;
-	winc.lpszClassName = TITLE;
+	winc.lpszClassName = MAINWINDOW;
 
 	winc2 = winc;
 	winc2.lpfnWndProc = WndProc2;
-	winc2.lpszClassName = TITLE_LIST;
+	winc2.lpszClassName = SUBWINDOW;
 
 	if (!RegisterClass(&winc)) return -1;
 	if (!RegisterClass(&winc2)) return -1;
 
-	hwnd = CreateWindow(TITLE, TEXT("ANALYZE"), WS_VISIBLE | WS_SYSMENU | WS_CAPTION,
+	hwnd = CreateWindow(MAINWINDOW, TEXT("ANALYZE"), WS_VISIBLE | WS_SYSMENU | WS_CAPTION,
 		0, 0, WIDTH, HEIGHT, NULL, NULL, hInstance, NULL);
-	hwnd2 = CreateWindow(TITLE_LIST, TEXT("JOINT_LIST"), WS_SYSMENU | WS_CAPTION,
+	hwnd2 = CreateWindow(SUBWINDOW, TEXT("JOINT_LIST"), WS_SYSMENU | WS_CAPTION,
 		WIDTH, 0, WIDTH, HEIGHT, NULL, NULL, hInstance, NULL);
+	hwnd3 = CreateWindow(SUBWINDOW, TEXT("decide wavefile's name"), WS_SYSMENU | WS_CAPTION | WS_DISABLED,
+		WIDTH, HEIGHT, WIDTH_SAVEWINDOW, HEIGHT_SAVEWINDOW, hwnd, NULL, hInstance, NULL);
 
 	GetClientRect(hwnd, &rc);
 	iClientWidth = rc.right - rc.left;
 	iInterval = iClientWidth - 2 * (MARGIN + WIDTH_BT);
-
 	hwnd_btstart = CreateWindow(TEXT("button"), TEXT("start"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, MARGIN, MARGIN, WIDTH_BT, HEIGHT_BT, hwnd, (HMENU)IDB_STR, hInstance, NULL);
 	hwnd_btend1 = CreateWindow(TEXT("button"), TEXT("end"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | WS_DISABLED, MARGIN + WIDTH_BT + iInterval, MARGIN, WIDTH_BT, HEIGHT_BT, hwnd, (HMENU)IDB_REC_END, hInstance, NULL);
 	hwnd_btplay = CreateWindow(TEXT("button"), TEXT("play"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, MARGIN, MARGIN + HEIGHT_BT + iInterval, WIDTH_BT, HEIGHT_BT, hwnd, (HMENU)IDB_PLAY, hInstance, NULL);
 	hwnd_btend2 = CreateWindow(TEXT("button"), TEXT("end"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | WS_DISABLED, MARGIN + WIDTH_BT + iInterval, MARGIN + HEIGHT_BT + iInterval, WIDTH_BT, HEIGHT_BT, hwnd, (HMENU)IDB_PLY_END, hInstance, NULL);
-	hwnd_lbcount = CreateWindow(TEXT("STATIC"), TEXT("count:0"), WS_CHILD | WS_VISIBLE, MARGIN, MARGIN + 2 * HEIGHT_BT + 2 * iInterval, WIDTH_LB, HEIGHT_LB, hwnd, (HMENU)1, hInstance, NULL);
-	hwnd_lbdata = CreateWindow(TEXT("STATIC"), TEXT("data :-"), WS_CHILD | WS_VISIBLE, MARGIN, MARGIN + 2 * HEIGHT_BT + HEIGHT_LB + 3 * iInterval, WIDTH_LB, HEIGHT_LB, hwnd, (HMENU)1, hInstance, NULL);
-	hwnd_lbjointtime = CreateWindow(TEXT("STATIC"), TEXT("time :-"), WS_CHILD | WS_VISIBLE, MARGIN, MARGIN + 2 * HEIGHT_BT + 2 * HEIGHT_LB + 4 * iInterval, WIDTH_LB, HEIGHT_LB, hwnd, (HMENU)1, hInstance, NULL);
-	hwnd_btsave = CreateWindow(TEXT("button"), TEXT("save"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, MARGIN, MARGIN + 2 * HEIGHT_BT + 2 * iInterval, WIDTH_BT, HEIGHT_BT, hwnd, (HMENU)IDB_SAVE, hInstance, NULL);
+	hwnd_btsave = CreateWindow(TEXT("button"), TEXT("save"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | WS_DISABLED, MARGIN, MARGIN + 2 * HEIGHT_BT + 2 * iInterval, WIDTH_BT, HEIGHT_BT, hwnd, (HMENU)IDB_SAVE, hInstance, NULL);
 	hwnd_btshow = CreateWindow(TEXT("button"), TEXT("show"), WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, MARGIN + WIDTH_BT + iInterval, MARGIN +2* HEIGHT_BT + 2*iInterval, WIDTH_BT, HEIGHT_BT, hwnd, (HMENU)IDB_SHOW, hInstance, NULL);
 
 	InitCommonControls();
 	GetClientRect(hwnd2, &rc2);
 	iClientWidth2 = rc2.right - rc2.left;
 	iClientHeight2 = rc2.bottom - rc2.top;
-
 	hwnd2_lvJoints = CreateWindowEx(0,WC_LISTVIEW, NULL,WS_CHILD | WS_VISIBLE | LVS_REPORT,
 		0, 0, iClientWidth2, iClientHeight2, hwnd2, (HMENU)1,hInstance, NULL);
+
+	InitCommonControls();
+	GetClientRect(hwnd3, &rc3);
+	iClientWidth3= rc3.right - rc3.left;
+	iClientHeight3 = rc3.bottom - rc3.top;
+	hwnd3_lbexplain = CreateWindow(TEXT("STATIC"), TEXT("保存するファイル名"), WS_CHILD | WS_VISIBLE | WS_BORDER | SS_CENTER, MARGIN, MARGIN, iClientWidth3 - 2 * MARGIN, HEIGHT_LB, hwnd3, (HMENU)1, hInstance, NULL);
+	hwnd3_edfilename = CreateWindow(TEXT("EDIT"), SAVEFILENAME, WS_CHILD | WS_VISIBLE | WS_BORDER | ES_RIGHT,MARGIN, MARGIN+HEIGHT_LB, WIDTH_ED, HEIGHT_ED, hwnd3, (HMENU)1, hInstance, NULL);
+	hwnd3_lbtype = CreateWindow(TEXT("STATIC"), TEXT(".wav"), WS_CHILD | WS_VISIBLE , MARGIN+WIDTH_ED, MARGIN + HEIGHT_LB, WIDTH_ED/2, HEIGHT_ED, hwnd3, (HMENU)1, hInstance, NULL);
+	hwnd3_btok = CreateWindow(TEXT("button"), TEXT("決定"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, (iClientWidth3-WIDTH_OKBT)/2, MARGIN + HEIGHT_LB+HEIGHT_ED+MARGIN, WIDTH_OKBT, HEIGHT_OKBT, hwnd3, (HMENU)IDB_OK, hInstance, NULL);
+
 	col.mask = LVCF_FMT | LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
 	col.fmt = LVCFMT_LEFT;
 	col.cx = iClientWidth2/4;
@@ -315,7 +353,7 @@ void saveSound(BYTE* pSound, PWAVEFORMATEX pWaveFormat,DWORD* pDataSize, PTSTR f
 		const DWORD dwFileSize = *pDataSize + 36,dwFmtSize = 16;
 		HANDLE hFile;
 
-		hFile = CreateFile(SAVEFILENAME, GENERIC_WRITE, 0, NULL,
+		hFile = CreateFile(file_name, GENERIC_WRITE, 0, NULL,
 			CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		if (hFile == INVALID_HANDLE_VALUE) {
 			MessageBox(NULL, TEXT("ファイルが開けません"), NULL, MB_OK);
@@ -333,7 +371,7 @@ void saveSound(BYTE* pSound, PWAVEFORMATEX pWaveFormat,DWORD* pDataSize, PTSTR f
 		WriteFile(hFile, pDataSize, 4, &dwWriteSize, NULL);
 		WriteFile(hFile, pSound, *pDataSize, &dwWriteSize, NULL);
 
-		MessageBox(NULL, TEXT("wavファイルを保存しました"), NULL, MB_OK);
+		MessageBox(NULL, TEXT("wavファイルを保存しました"),TEXT("成功"), MB_OK);
 
 
 		CloseHandle(hFile);

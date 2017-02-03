@@ -3,7 +3,8 @@
 #include <windows.h>
 #include <math.h>
 
-#define ALPHA 4.4
+//#define ALPHA 4.4
+#define ALPHA 1.0//テスト用
 #define BETA 0.04
 #define GANMA 2.0/3.0
 
@@ -193,4 +194,44 @@ void UpdateJointList(HWND hListView, joint* pJoint, DWORD dwCount) {
 		ListView_DeleteAllItems(hListView);
 	}
 
+}
+
+void saveJoint(LPWSTR filename,joint* pJoint,DWORD jointnum) {
+	static HANDLE hFile;
+	static DWORD dwWriteSize,dwCount;
+	static CHAR cCount[12], cData[12],cJointTime[16], cSleepTime[16];
+
+	if (jointnum != 0) {
+	hFile = CreateFile(filename, GENERIC_WRITE, 0, NULL,
+		CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFile == INVALID_HANDLE_VALUE) {
+		MessageBox(NULL, TEXT("ファイルが開けません"), NULL, MB_OK);
+		return;
+	}
+	sprintf_s(cCount, 10, "%-6s", "count");
+	sprintf_s(cData, 10, "%-6s", "data");
+	sprintf_s(cJointTime, 16, "%-10s", "jointtime");
+	sprintf_s(cSleepTime, 16, "%-10s", "sleeptime");
+	WriteFile(hFile, cCount, 10, &dwWriteSize, NULL);
+	WriteFile(hFile, cData, 10, &dwWriteSize, NULL);
+	WriteFile(hFile, cJointTime, 16, &dwWriteSize, NULL);
+	WriteFile(hFile, cSleepTime, 16, &dwWriteSize, NULL);
+	WriteFile(hFile, "\n", 2, &dwWriteSize, NULL);
+
+	for (dwCount = 0; dwCount < jointnum;dwCount++) {
+		sprintf_s(cCount, 10, "%-6d", (pJoint + dwCount)->count);
+		sprintf_s(cData, 10, "%-6d", (pJoint + dwCount)->data);
+		sprintf_s(cJointTime, 16, "%-10f", (pJoint + dwCount)->jointtime);
+		sprintf_s(cSleepTime, 16, "%-10f", (pJoint + dwCount)->sleeptime);
+		WriteFile(hFile, cCount,10 , &dwWriteSize, NULL);
+		WriteFile(hFile, cData, 10, &dwWriteSize, NULL);
+		WriteFile(hFile, cJointTime, 16, &dwWriteSize, NULL);
+		WriteFile(hFile, cSleepTime, 16, &dwWriteSize, NULL);
+		WriteFile(hFile, "\n", 2, &dwWriteSize, NULL);
+	}
+
+	CloseHandle(hFile);
+
+	MessageBox(NULL, TEXT("txtファイルを保存しました"), TEXT("成功"), MB_OK);
+	}
 }

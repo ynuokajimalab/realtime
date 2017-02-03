@@ -6,3 +6,4 @@
 #define IDB_PLY_END 0x103
 #define IDB_SHOW 0x104
 #define IDB_SAVE 0x105
+#define IDB_OK 0x106
